@@ -171,9 +171,28 @@
     background-color: rgba(0, 0, 0, 0.03);
     font-weight: 600;
     text-align: center;
+    cursor: pointer; /* tambahan agar terlihat bisa diklik */
 }
 .dark-mode #tableSupplier td:first-child {
     background-color: rgba(255, 255, 255, 0.1);
+}
+/* Style untuk state checked dan unchecking pada kolom pertama */
+#tableSupplier td:first-child.checked {
+    background-color: #4caf50 !important;
+    color: white;
+}
+#tableSupplier td:first-child.unchecking {
+    background-color: #f44336 !important;
+    color: white;
+}
+.dark-mode #tableSupplier td:first-child.checked {
+    background-color: #2e7d32 !important;
+}
+.dark-mode #tableSupplier td:first-child.unchecking {
+    background-color: #c62828 !important;
+}
+#tableSupplier td:first-child i {
+    margin-left: 5px;
 }
 #tableRingkas td:first-child {
     background-color: rgba(0, 0, 0, 0.03);
@@ -768,6 +787,10 @@
 
         // Admin Geofence Variables
         let allAbsensiData = [];
+
+        // Variabel untuk state klik pada kolom nomor tabel supplier
+        let supplierRowState = new Map(); // key: nama supplier, value: 'checked' atau 'unchecking'
+        let supplierTimeouts = new Map(); // key: nama supplier, value: timeoutId
 
         // DOM Elements
         const loginPopup = document.getElementById('loginPopup');
@@ -1646,7 +1669,7 @@
             tbody.innerHTML = '';
             const dataHariIni = getTodaySalesData();
             if (dataHariIni.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; padding: 20px;">Belum ada data supplier hari ini</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">Belum ada data supplier hari ini</td></tr>';
                 return;
             }
             const supplierTotals = {};
@@ -1665,10 +1688,20 @@
             });
 
             sortedSuppliers.forEach(([supplier, total], index) => {
-    const row = document.createElement('tr');
-    row.innerHTML = `<td>${index + 1}</td><td>${supplier}</td><td>${formatCurrency(total)}</td>`;
-    tbody.appendChild(row);
-});
+                const row = document.createElement('tr');
+                const state = supplierRowState.get(supplier); // 'checked', 'unchecking', atau undefined
+                let firstCellContent = `<span class="index-number">${index+1}</span>`;
+                let cellClass = '';
+                if (state === 'checked') {
+                    cellClass = 'checked';
+                    firstCellContent += ' <i class="fas fa-check"></i>';
+                } else if (state === 'unchecking') {
+                    cellClass = 'unchecking';
+                    firstCellContent += ' <i class="fas fa-times"></i>';
+                }
+                row.innerHTML = `<td class="${cellClass}" data-supplier="${supplier}">${firstCellContent}</td><td>${supplier}</td><td>${formatCurrency(total)}</td>`;
+                tbody.appendChild(row);
+            });
         };
 
         const renderSupplierDetailTable = () => {
@@ -2459,6 +2492,49 @@
             setupSearchFunctionality();
             setupTableZoom();
             setupLaporanRingkasFilterListeners();
+
+            // Event listener untuk klik pada kolom nomor tabel supplier
+            const supplierTbody = document.querySelector('#tableSupplier tbody');
+            if (supplierTbody) {
+                supplierTbody.addEventListener('click', function(e) {
+                    const target = e.target;
+                    const td = target.closest('td');
+                    if (!td) return;
+                    // Cek apakah td adalah kolom pertama
+                    const tr = td.closest('tr');
+                    if (!tr) return;
+                    const tdIndex = Array.from(tr.children).indexOf(td);
+                    if (tdIndex !== 0) return; // hanya kolom pertama
+
+                    const supplier = td.getAttribute('data-supplier');
+                    if (!supplier) return;
+
+                    const currentState = supplierRowState.get(supplier);
+
+                    // Batalkan timeout jika ada
+                    if (supplierTimeouts.has(supplier)) {
+                        clearTimeout(supplierTimeouts.get(supplier));
+                        supplierTimeouts.delete(supplier);
+                    }
+
+                    if (currentState === 'checked') {
+                        // Ubah ke unchecking
+                        supplierRowState.set(supplier, 'unchecking');
+                        renderSupplierTable();
+                        // Set timeout untuk kembali normal
+                        const timeoutId = setTimeout(() => {
+                            supplierRowState.delete(supplier);
+                            supplierTimeouts.delete(supplier);
+                            renderSupplierTable();
+                        }, 300);
+                        supplierTimeouts.set(supplier, timeoutId);
+                    } else {
+                        // Selain checked (normal atau unchecking) -> set ke checked
+                        supplierRowState.set(supplier, 'checked');
+                        renderSupplierTable();
+                    }
+                });
+            }
         });
     </script>
 </body>

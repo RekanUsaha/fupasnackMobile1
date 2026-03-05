@@ -165,7 +165,15 @@
         .btn-success { background-color: var(--success-color) !important; }
         .btn-success:hover { background-color: #388e3c !important; }
         .global-edit-mode .table-container input:not([readonly]) { background-color: rgba(79, 195, 247, 0.1); border-color: var(--accent-color); }
-
+/* Kolom nomor pada tabel ringkas (hanya isi baris) */
+#tableRingkas td:first-child {
+    background-color: rgba(0, 0, 0, 0.03);
+    font-weight: 600;
+    text-align: center;
+}
+.dark-mode #tableRingkas td:first-child {
+    background-color: rgba(255, 255, 255, 0.1);
+}
         /* Absensi Styles */
         .absensi-container { max-width: 900px; margin: 0 auto; }
         .absensi-note { background-color: rgba(255, 248, 225, 0.8); padding: 15px; border-left: 4px solid #ffb300; margin-bottom: 20px; border-radius: 5px; }
@@ -351,17 +359,18 @@
                         </div>
                     </div>
                     <div class="table-container table-10-rows">
-                        <table id="tableRingkas">
-                            <thead>
-                                <tr>
-                                    <th>Nama Supplier</th>
-                                    <th>Barang</th>
-                                    <th style="width: 100px;">Stok</th>
-                                    <th style="width: 100px;">Sisa</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
+<table id="tableRingkas">
+    <thead>
+        <tr>
+            <th style="width: 50px;">#</th>
+            <th>Nama Supplier</th>
+            <th>Barang</th>
+            <th style="width: 100px;">Stok</th>
+            <th style="width: 100px;">Sisa</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
                     </div>
                 </div>
 
@@ -1411,11 +1420,12 @@
         };
 
         const setupSearchFunctionality = () => {
-            const searchConfigs = [
-                { input: 'searchRingkas', table: 'tableRingkas', cols: [0, 1] },
-                { input: 'searchDetail', table: 'tableDetail', cols: [2, 3], isInput: true },
-                { input: 'searchSupplier', table: 'tableSupplier', cols: [0] }
-            ];
+    const searchConfigs = [
+        { input: 'searchRingkas', table: 'tableRingkas', cols: [1, 2] }, // supplier di index 1, barang di index 2
+        { input: 'searchDetail', table: 'tableDetail', cols: [2, 3], isInput: true },
+        { input: 'searchSupplier', table: 'tableSupplier', cols: [0] }
+    ];
+    // ... (kode selanjutnya tetap sama, tidak perlu diubah)
             searchConfigs.forEach(config => {
                 const searchInput = document.getElementById(config.input);
                 if (searchInput) {
@@ -1454,83 +1464,84 @@
 
         // ========== RENDER RINGKAS TABLE WITH SORTING ==========
         const renderRingkasTable = () => {
-            const tbody = document.querySelector('#tableRingkas tbody');
-            tbody.innerHTML = '';
-            const dataHariIni = getTodaySalesData();
-            if (dataHariIni.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">Belum ada data penjualan hari ini</td></tr>';
-                return;
-            }
+    const tbody = document.querySelector('#tableRingkas tbody');
+    tbody.innerHTML = '';
+    const dataHariIni = getTodaySalesData();
+    if (dataHariIni.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">Belum ada data penjualan hari ini</td></tr>';
+        return;
+    }
 
-            // Hitung frekuensi kemunculan supplier untuk menentukan perlu bullet atau tidak
-            const supplierCount = {};
-            dataHariIni.forEach(item => {
-                supplierCount[item.supplier] = (supplierCount[item.supplier] || 0) + 1;
+    // Hitung frekuensi kemunculan supplier untuk menentukan perlu bullet atau tidak
+    const supplierCount = {};
+    dataHariIni.forEach(item => {
+        supplierCount[item.supplier] = (supplierCount[item.supplier] || 0) + 1;
+    });
+
+    // Update supplier color map untuk semua supplier
+    const suppliers = [...new Set(dataHariIni.map(item => item.supplier))];
+    suppliers.forEach(supplier => {
+        if (!supplierColorMap.has(supplier)) {
+            const colorIndex = supplierColorMap.size % colorPalette.length;
+            supplierColorMap.set(supplier, colorPalette[colorIndex]);
+        }
+    });
+
+    // Kelompokkan data per supplier+barang, sambil catat max createdAt per grup
+    const groupedMap = new Map(); // key -> { supplier, barang, stok, sisa, maxCreatedAt }
+    dataHariIni.forEach(item => {
+        const key = `${item.supplier}-${item.barang}`;
+        if (!groupedMap.has(key)) {
+            groupedMap.set(key, {
+                supplier: item.supplier,
+                barang: item.barang,
+                stok: 0,
+                sisa: 0,
+                maxCreatedAt: item.createdAt?.seconds || 0
             });
+        }
+        const group = groupedMap.get(key);
+        group.stok += item.stok;
+        group.sisa += item.sisa;
+        const itemTime = item.createdAt?.seconds || 0;
+        if (itemTime > group.maxCreatedAt) group.maxCreatedAt = itemTime;
+    });
 
-            // Update supplier color map untuk semua supplier
-            const suppliers = [...new Set(dataHariIni.map(item => item.supplier))];
-            suppliers.forEach(supplier => {
-                if (!supplierColorMap.has(supplier)) {
-                    const colorIndex = supplierColorMap.size % colorPalette.length;
-                    supplierColorMap.set(supplier, colorPalette[colorIndex]);
-                }
-            });
+    // Ubah Map ke array untuk diurutkan
+    let groups = Array.from(groupedMap.values());
 
-            // Kelompokkan data per supplier+barang, sambil catat max createdAt per grup
-            const groupedMap = new Map(); // key -> { supplier, barang, stok, sisa, maxCreatedAt }
-            dataHariIni.forEach(item => {
-                const key = `${item.supplier}-${item.barang}`;
-                if (!groupedMap.has(key)) {
-                    groupedMap.set(key, {
-                        supplier: item.supplier,
-                        barang: item.barang,
-                        stok: 0,
-                        sisa: 0,
-                        maxCreatedAt: item.createdAt?.seconds || 0
-                    });
-                }
-                const group = groupedMap.get(key);
-                group.stok += item.stok;
-                group.sisa += item.sisa;
-                const itemTime = item.createdAt?.seconds || 0;
-                if (itemTime > group.maxCreatedAt) group.maxCreatedAt = itemTime;
-            });
+    // Urutkan: pertama berdasarkan supplier (A-Z), lalu dalam supplier yang sama berdasarkan maxCreatedAt descending
+    groups.sort((a, b) => {
+        if (a.supplier < b.supplier) return -1;
+        if (a.supplier > b.supplier) return 1;
+        // supplier sama, urut berdasarkan maxCreatedAt descending
+        return b.maxCreatedAt - a.maxCreatedAt;
+    });
 
-            // Ubah Map ke array untuk diurutkan
-            let groups = Array.from(groupedMap.values());
+    // Render dengan menambahkan nomor urut
+    groups.forEach((item, index) => {
+        const row = document.createElement('tr');
+        const key = `${item.supplier}-${item.barang}`;
+        const isReadOnly = !isGlobalEditMode;
+        let displayStok = item.stok, displaySisa = item.sisa;
+        if (batchChanges.ringkas.has(key)) {
+            const changes = batchChanges.ringkas.get(key);
+            displayStok = changes.stok;
+            displaySisa = changes.sisa;
+        }
+        const needBullet = supplierCount[item.supplier] > 1;
+        const warna = supplierColorMap.get(item.supplier) || '#000000';
+        let barangDisplay = item.barang;
+        if (needBullet) {
+            barangDisplay = `${item.barang}<span style="color: ${warna}; margin-left: 4px;">•</span>`;
+        }
+        // Tambahkan sel nomor di awal
+        row.innerHTML = `<td>${index + 1}</td><td>${item.supplier}</td><td>${barangDisplay}</td><td><input type="number" class="number-input" value="${displayStok}" data-key="${key}" data-field="stok" ${isReadOnly ? 'readonly' : ''}></td><td><input type="number" class="number-input" value="${displaySisa}" data-key="${key}" data-field="sisa" ${isReadOnly ? 'readonly' : ''}></td>`;
+        tbody.appendChild(row);
+    });
 
-            // Urutkan: pertama berdasarkan supplier (A-Z), lalu dalam supplier yang sama berdasarkan maxCreatedAt descending
-            groups.sort((a, b) => {
-                if (a.supplier < b.supplier) return -1;
-                if (a.supplier > b.supplier) return 1;
-                // supplier sama, urut berdasarkan maxCreatedAt descending
-                return b.maxCreatedAt - a.maxCreatedAt;
-            });
-
-            // Render
-            groups.forEach(item => {
-                const row = document.createElement('tr');
-                const key = `${item.supplier}-${item.barang}`;
-                const isReadOnly = !isGlobalEditMode;
-                let displayStok = item.stok, displaySisa = item.sisa;
-                if (batchChanges.ringkas.has(key)) {
-                    const changes = batchChanges.ringkas.get(key);
-                    displayStok = changes.stok;
-                    displaySisa = changes.sisa;
-                }
-                const needBullet = supplierCount[item.supplier] > 1;
-                const warna = supplierColorMap.get(item.supplier) || '#000000';
-                let barangDisplay = item.barang;
-                if (needBullet) {
-                    barangDisplay = `${item.barang}<span style="color: ${warna}; margin-left: 4px;">•</span>`;
-                }
-                row.innerHTML = `<td>${item.supplier}</td><td>${barangDisplay}</td><td><input type="number" class="number-input" value="${displayStok}" data-key="${key}" data-field="stok" ${isReadOnly ? 'readonly' : ''}></td><td><input type="number" class="number-input" value="${displaySisa}" data-key="${key}" data-field="sisa" ${isReadOnly ? 'readonly' : ''}></td>`;
-                tbody.appendChild(row);
-            });
-
-            if (isGlobalEditMode) setupRingkasInputListeners(tbody);
-        };
+    if (isGlobalEditMode) setupRingkasInputListeners(tbody);
+};
 
         const setupRingkasInputListeners = (container) => {
             container.querySelectorAll('input').forEach(input => {

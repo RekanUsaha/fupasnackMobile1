@@ -166,6 +166,15 @@
         .btn-success:hover { background-color: #388e3c !important; }
         .global-edit-mode .table-container input:not([readonly]) { background-color: rgba(79, 195, 247, 0.1); border-color: var(--accent-color); }
 /* Kolom nomor pada tabel ringkas (hanya isi baris) */
+/* Kolom nomor pada tabel supplier */
+#tableSupplier td:first-child {
+    background-color: rgba(0, 0, 0, 0.03);
+    font-weight: 600;
+    text-align: center;
+}
+.dark-mode #tableSupplier td:first-child {
+    background-color: rgba(255, 255, 255, 0.1);
+}
 #tableRingkas td:first-child {
     background-color: rgba(0, 0, 0, 0.03);
     font-weight: 600;
@@ -416,14 +425,15 @@
                     </div>
                     <div class="table-container table-10-rows">
                         <table id="tableSupplier">
-                            <thead>
-                                <tr>
-                                    <th>Nama Supplier</th>
-                                    <th>Total Uang Supplier</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
+    <thead>
+        <tr>
+            <th style="width: 50px;">#</th>
+            <th>Nama Supplier</th>
+            <th>Total Uang Supplier</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
                     </div>
                 </div>
 
@@ -1423,7 +1433,7 @@
     const searchConfigs = [
         { input: 'searchRingkas', table: 'tableRingkas', cols: [1, 2] }, // supplier di index 1, barang di index 2
         { input: 'searchDetail', table: 'tableDetail', cols: [2, 3], isInput: true },
-        { input: 'searchSupplier', table: 'tableSupplier', cols: [0] }
+        { input: 'searchSupplier', table: 'tableSupplier', cols: [1] }
     ];
     // ... (kode selanjutnya tetap sama, tidak perlu diubah)
             searchConfigs.forEach(config => {
@@ -1654,11 +1664,11 @@
                 return 0;
             });
 
-            sortedSuppliers.forEach(([supplier, total]) => {
-                const row = document.createElement('tr');
-                row.innerHTML = `<td>${supplier}</td><td>${formatCurrency(total)}</td>`;
-                tbody.appendChild(row);
-            });
+            sortedSuppliers.forEach(([supplier, total], index) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${index + 1}</td><td>${supplier}</td><td>${formatCurrency(total)}</td>`;
+    tbody.appendChild(row);
+});
         };
 
         const renderSupplierDetailTable = () => {

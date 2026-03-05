@@ -623,12 +623,12 @@
             <div class="popup-body">
                 <div class="actions" style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
                     <div>
-                        <button class="btn btn-primary" id="pasteSelectedSupplier"><i class="fas fa-paste"></i> Paste ke Detail</button>
-                        <button class="btn btn-danger" id="deleteSelectedSupplier"><i class="fas fa-trash"></i> Hapus Terpilih</button>
+                        <button class="btn btn-primary" id="pasteSelectedSupplier"><i class="fas fa-paste"></i></button>
+                                                <button class="btn btn-primary" id="editBatchSupplierMaster"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-primary" id="tambahSupplierMaster"><i class="fas fa-plus"></i></button>
                     </div>
                     <div>
-                        <button class="btn btn-primary" id="editBatchSupplierMaster"><i class="fas fa-edit"></i> Edit Batch</button>
-                        <button class="btn btn-primary" id="tambahSupplierMaster"><i class="fas fa-plus"></i> Tambah Supplier</button>
+                         <button class="btn btn-danger" id="deleteSelectedSupplier"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
                 <div class="table-container fullscreen-table-container">
@@ -642,7 +642,6 @@
                                 <th>Barang</th>
                                 <th>Harga Beli</th>
                                 <th>Harga Jual</th>
-                                <th class="action-column">Aksi</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -1267,7 +1266,7 @@
             } else {
                 if (editRingkasBtn) { editRingkasBtn.innerHTML = '<i class="fas fa-edit"></i>'; editRingkasBtn.classList.remove('btn-success'); editRingkasBtn.classList.add('btn-primary'); }
                 if (editDetailBtn) { editDetailBtn.innerHTML = '<i class="fas fa-edit"></i>'; editDetailBtn.classList.remove('btn-success'); editDetailBtn.classList.add('btn-primary'); }
-                if (editSupplierMasterBtn) { editSupplierMasterBtn.innerHTML = '<i class="fas fa-edit"></i> Edit Batch'; editSupplierMasterBtn.classList.remove('btn-success'); editSupplierMasterBtn.classList.add('btn-primary'); }
+                if (editSupplierMasterBtn) { editSupplierMasterBtn.innerHTML = '<i class="fas fa-edit"></i>'; editSupplierMasterBtn.classList.remove('btn-success'); editSupplierMasterBtn.classList.add('btn-primary'); }
             }
         };
 
@@ -1614,7 +1613,6 @@
                     <td><input type="text" value="${itemData.barang || ''}" data-id="${item.id}" data-field="barang" ${isReadOnly ? 'readonly' : ''}></td>
                     <td><input type="text" class="currency-input-field" value="${formatNumber(itemData.hargaBeli || 0)}" data-id="${item.id}" data-field="hargaBeli" ${isReadOnly ? 'readonly' : ''}></td>
                     <td><input type="text" class="currency-input-field" value="${formatNumber(itemData.hargaJual || 0)}" data-id="${item.id}" data-field="hargaJual" ${isReadOnly ? 'readonly' : ''}></td>
-                    <td class="action-column"><button class="btn btn-danger btn-hapus-supplier" title="Hapus" data-id="${item.id}"><i class="fas fa-trash"></i></button></td>
                 `;
                 tbody.appendChild(row);
             });

@@ -190,7 +190,6 @@
 
         /* Admin Geofence Monitor Styles */
         .admin-geofence-container { max-width: 1200px; margin: 0 auto; }
-        .admin-controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
         .admin-filters { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
         .admin-filter-group { display: flex; align-items: center; gap: 6px; }
         .admin-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; z-index: 1000; }
@@ -262,6 +261,28 @@
         .shortcut-card:hover {
             transform: translateY(-5px);
         }
+
+/* Tambahkan CSS ini di bagian style */
+.rekap-table-container {
+    width: 100%;
+    overflow-x: auto;
+    margin-bottom: 20px;
+}
+.rekap-table {
+    min-width: 400px; /* agar tidak terlalu kecil, bisa disesuaikan */
+    width: 100%;
+    border-collapse: collapse;
+}
+.rekap-table th, .rekap-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+.rekap-table th {
+    background-color: var(--secondary-color);
+    color: #fff;
+    font-weight: 600;
+}
     </style>
 </head>
 <body>
@@ -497,11 +518,6 @@
                     <div class="admin-geofence-container">
                         <h3>Monitor Kehadiran Admin</h3>
 
-                        <div class="admin-controls">
-                            <button id="deleteLogBtn" class="btn btn-danger">Hapus Bulan Lalu</button>
-                            <button id="downloadBtn" class="btn btn-secondary">Unduh CSV</button>
-                        </div>
-
                         <div class="admin-filters">
                             <div class="admin-filter-group">
                                 <label>Filter:</label>
@@ -524,6 +540,25 @@
                                 <span>s/d</span>
                                 <input type="date" id="endDate">
                             </div>
+                        </div>
+
+                        <!-- Tabel Rekap -->
+                        <div class="rekap-table-container">
+                            <h4>Rekap Kehadiran</h4>
+                            <table class="rekap-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Nama</th>
+                                        <th>Tepat</th>
+                                        <th>Terlambat</th>
+                                        <th>Akumulasi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rekapTableBody">
+                                    <!-- akan diisi javascript -->
+                                </tbody>
+                            </table>
                         </div>
 
                         <div class="table-container admin-table-container">
@@ -731,14 +766,13 @@
         const absensiLogTable = document.querySelector('#absensiLogTable tbody');
 
         // Admin Geofence DOM Elements
-        const deleteLogBtn = document.getElementById('deleteLogBtn');
-        const downloadBtn = document.getElementById('downloadBtn');
         const filterNama = document.getElementById('filterNama');
         const filterPeriode = document.getElementById('filterPeriode');
         const periodeInputs = document.getElementById('periodeInputs');
         const startDate = document.getElementById('startDate');
         const endDate = document.getElementById('endDate');
         const logTableBody = document.querySelector('#logTable tbody');
+        const rekapTableBody = document.getElementById('rekapTableBody');
 
         const currentZoomLevels = { ringkas: 1, detail: 1, supplier: 1, supplierPopup: 1 };
         const minZoomLevel = 0.5, maxZoomLevel = 2, zoomStep = 0.1;
@@ -1718,20 +1752,39 @@
             periodeInputs.style.display = filterPeriode.value === 'periode' ? 'flex' : 'none';
             renderLaporanKehadiranAdmin();
         };
-        const hapusLogBulanLalu = async () => {
-            if (!confirm('Yakin hapus semua log bulan lalu?')) return;
-            const today = new Date();
-            const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-            try {
-                const snapshot = await db.collection('absensi').where('createdAt', '<', firstDayOfCurrentMonth).get();
-                const batch = db.batch();
-                snapshot.docs.forEach(doc => batch.delete(doc.ref));
-                await batch.commit();
-                alert(`Berhasil menghapus ${snapshot.size} dokumen bulan lalu`);
-                await getAllAbsensiData();
-                renderLaporanKehadiranAdmin();
-            } catch (error) { console.error('Error menghapus log:', error); alert('Gagal menghapus log: ' + error.message); }
+
+        // Fungsi untuk merender rekap
+        const renderRekap = (filteredData) => {
+            const rekap = {};
+            filteredData.forEach(item => {
+                const nama = item.nama || 'Tanpa Nama';
+                if (!rekap[nama]) {
+                    rekap[nama] = { tepat: 0, terlambat: 0 };
+                }
+                if (item.status === 'tepat') {
+                    rekap[nama].tepat++;
+                } else if (item.status === 'terlambat') {
+                    rekap[nama].terlambat++;
+                }
+            });
+
+            rekapTableBody.innerHTML = '';
+            let index = 1;
+            const sortedNames = Object.keys(rekap).sort();
+            sortedNames.forEach(nama => {
+                const row = document.createElement('tr');
+                const tepat = rekap[nama].tepat;
+                const terlambat = rekap[nama].terlambat;
+                const akumulasi = tepat + terlambat;
+                row.innerHTML = `<td>${index++}</td><td>${nama}</td><td>${tepat}</td><td>${terlambat}</td><td>${akumulasi}</td>`;
+                rekapTableBody.appendChild(row);
+            });
+
+            if (sortedNames.length === 0) {
+                rekapTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Tidak ada data rekap</td></tr>';
+            }
         };
+
         const renderLaporanKehadiranAdmin = async () => {
             try {
                 logTableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">Memuat data...</td></tr>';
@@ -1773,53 +1826,16 @@
                     filterNama.innerHTML = '<option value="">Semua</option>';
                     uniqueNames.forEach(nama => { const option = document.createElement('option'); option.value = nama; option.textContent = nama; filterNama.appendChild(option); });
                 }
+
+                // Render rekap
+                renderRekap(filteredData);
             } catch (error) { console.error('Error render laporan kehadiran:', error); logTableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">Error memuat data: ' + error.message + '</td></tr>'; }
         };
-        const downloadCSV = async () => {
-            try {
-                let filteredData = [...allAbsensiData];
-                const namaFilter = filterNama.value;
-                if (namaFilter) filteredData = filteredData.filter(item => item.nama === namaFilter);
-                const periode = filterPeriode.value;
-                const now = new Date();
-                if (periode === 'hari_ini') {
-                    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    filteredData = filteredData.filter(item => { const itemDate = item.createdAt ? new Date(item.createdAt.seconds * 1000) : new Date(item.tanggal); return itemDate >= startOfDay; });
-                } else if (periode === 'bulan_ini') {
-                    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                    filteredData = filteredData.filter(item => { const itemDate = item.createdAt ? new Date(item.createdAt.seconds * 1000) : new Date(item.tanggal); return itemDate >= startOfMonth; });
-                } else if (periode === 'periode') {
-                    if (startDate.value && endDate.value) {
-                        const start = new Date(startDate.value);
-                        const end = new Date(endDate.value); end.setHours(23,59,59,999);
-                        filteredData = filteredData.filter(item => { const itemDate = item.createdAt ? new Date(item.createdAt.seconds * 1000) : new Date(item.tanggal); return itemDate >= start && itemDate <= end; });
-                    }
-                }
-                const csvHeader = ['Tanggal','Waktu','Nama','Status','Foto URL'];
-                const csvData = [];
-                filteredData.forEach((item) => {
-                    let tanggalFormatted = '-', waktuFormatted = '-';
-                    if (item.createdAt) { const date = item.createdAt.seconds ? new Date(item.createdAt.seconds * 1000) : new Date(item.createdAt); tanggalFormatted = date.toLocaleDateString('id-ID'); waktuFormatted = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); }
-                    else if (item.tanggal) tanggalFormatted = item.tanggal;
-                    const statusText = item.status ? `${item.status} ${item.jenis ? `(${item.jenis})` : ''}` : '-';
-                    csvData.push([tanggalFormatted, waktuFormatted, item.nama || '-', statusText, item.foto_url || '-']);
-                });
-                let csvContent = csvHeader.join(',') + '\n';
-                csvData.forEach(row => { csvContent += row.map(field => `"${field}"`).join(',') + '\n'; });
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                const timestamp = new Date().toISOString().split('T')[0];
-                a.href = url; a.download = `laporan_kehadiran_${timestamp}.csv`;
-                document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-            } catch (error) { console.error('Error download CSV:', error); alert('Gagal mengunduh CSV: ' + error.message); }
-        };
+
         const setupAdminGeofenceListeners = () => {
             const today = new Date().toISOString().split('T')[0];
             if (startDate) startDate.value = today;
             if (endDate) endDate.value = today;
-            if (deleteLogBtn) deleteLogBtn.addEventListener('click', hapusLogBulanLalu);
-            if (downloadBtn) downloadBtn.addEventListener('click', downloadCSV);
             if (filterPeriode) filterPeriode.addEventListener('change', togglePeriodeInputs);
             if (filterNama) filterNama.addEventListener('change', renderLaporanKehadiranAdmin);
             if (filterPeriode) filterPeriode.addEventListener('change', renderLaporanKehadiranAdmin);

@@ -548,7 +548,6 @@
                             <table class="rekap-table">
                                 <thead>
                                     <tr>
-                                        <th>#</th>
                                         <th>Nama</th>
                                         <th>Tepat</th>
                                         <th>Terlambat</th>
@@ -1769,14 +1768,13 @@
             });
 
             rekapTableBody.innerHTML = '';
-            let index = 1;
             const sortedNames = Object.keys(rekap).sort();
             sortedNames.forEach(nama => {
                 const row = document.createElement('tr');
                 const tepat = rekap[nama].tepat;
                 const terlambat = rekap[nama].terlambat;
                 const akumulasi = tepat + terlambat;
-                row.innerHTML = `<td>${index++}</td><td>${nama}</td><td>${tepat}</td><td>${terlambat}</td><td>${akumulasi}</td>`;
+                row.innerHTML = `<td>${nama}</td><td>${tepat}</td><td>${terlambat}</td><td>${akumulasi}</td>`;
                 rekapTableBody.appendChild(row);
             });
 

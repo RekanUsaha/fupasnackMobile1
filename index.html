@@ -792,6 +792,29 @@
         let supplierRowState = new Map(); // key: nama supplier, value: 'checked' atau 'unchecking'
         let supplierTimeouts = new Map(); // key: nama supplier, value: timeoutId
 
+        // Fungsi untuk menyimpan state ke localStorage berdasarkan UID
+        const saveSupplierRowState = (uid) => {
+            if (!uid) return;
+            const key = `supplierRowState_${uid}`;
+            const obj = Object.fromEntries(supplierRowState);
+            localStorage.setItem(key, JSON.stringify(obj));
+        };
+
+        // Fungsi untuk memuat state dari localStorage
+        const loadSupplierRowState = (uid) => {
+            if (!uid) return;
+            const key = `supplierRowState_${uid}`;
+            const stored = localStorage.getItem(key);
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    supplierRowState = new Map(Object.entries(parsed));
+                } catch (e) {
+                    console.error("Error loading supplier row state", e);
+                }
+            }
+        };
+
         // DOM Elements
         const loginPopup = document.getElementById('loginPopup');
         const loginForm = document.getElementById('loginForm');
@@ -2445,6 +2468,10 @@
                         await getSales();
                         await getSupplierPayments();
                         await getSupplierMaster();
+
+                        // Muat state supplier dari localStorage
+                        loadSupplierRowState(currentUser.uid);
+
                         setupRealTimeListeners();
                         setupBottomNav();
                         updateDateTime();
@@ -2526,6 +2553,8 @@
                             supplierRowState.delete(supplier);
                             supplierTimeouts.delete(supplier);
                             renderSupplierTable();
+                            // Simpan state setelah perubahan
+                            if (currentUser) saveSupplierRowState(currentUser.uid);
                         }, 300);
                         supplierTimeouts.set(supplier, timeoutId);
                     } else {
@@ -2533,6 +2562,8 @@
                         supplierRowState.set(supplier, 'checked');
                         renderSupplierTable();
                     }
+                    // Simpan state setelah perubahan
+                    if (currentUser) saveSupplierRowState(currentUser.uid);
                 });
             }
         });

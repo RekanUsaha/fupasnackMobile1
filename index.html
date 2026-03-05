@@ -723,11 +723,19 @@
         // Supplier color mapping for ringkas table (added for bullet points)
         let supplierColorMap = new Map();
         const colorPalette = [
-            '#FF5733', '#33FF57', '#3357FF', '#FF33F1', '#F1FF33',
-            '#33FFF5', '#F533FF', '#FF8C33', '#8C33FF', '#33FF8C',
-            '#FF3333', '#33FF33', '#3333FF', '#FFFF33', '#FF33FF',
-            '#33FFFF', '#FF6633', '#6633FF', '#33FF66', '#663366'
-        ];
+    // 20 warna asli
+    '#FF5733', '#33FF57', '#3357FF', '#FF33F1', '#F1FF33',
+    '#33FFF5', '#F533FF', '#FF8C33', '#8C33FF', '#33FF8C',
+    '#FF3333', '#33FF33', '#3333FF', '#FFFF33', '#FF33FF',
+    '#33FFFF', '#FF6633', '#6633FF', '#33FF66', '#663366',
+    // 30 warna tambahan
+    '#FFCC33', '#33FFCC', '#CC33FF', '#FF33CC', '#33CC33',
+    '#CC3333', '#3333CC', '#FFCCCC', '#CCFFCC', '#CCCCFF',
+    '#FF9966', '#6699FF', '#99FF66', '#FF66FF', '#66FFFF',
+    '#FFFF66', '#FF6666', '#66FF66', '#6666FF', '#FFCC99',
+    '#99FFCC', '#CC99FF', '#FF99CC', '#99CCFF', '#CCFF99',
+    '#FF99FF', '#99FFFF', '#FFFF99', '#FF9999', '#9999FF'
+];
 
         // Absensi Variables
         let currentPhoto = null;
@@ -1444,7 +1452,7 @@
             }, true);
         };
 
-        // ========== MODIFIED RENDER RINGKAS TABLE ==========
+        // ========== RENDER RINGKAS TABLE WITH SORTING ==========
         const renderRingkasTable = () => {
             const tbody = document.querySelector('#tableRingkas tbody');
             tbody.innerHTML = '';
@@ -1460,7 +1468,7 @@
                 supplierCount[item.supplier] = (supplierCount[item.supplier] || 0) + 1;
             });
 
-            // Update supplier color map untuk semua supplier (tetap disimpan)
+            // Update supplier color map untuk semua supplier
             const suppliers = [...new Set(dataHariIni.map(item => item.supplier))];
             suppliers.forEach(supplier => {
                 if (!supplierColorMap.has(supplier)) {
@@ -1469,15 +1477,39 @@
                 }
             });
 
-            const groupedData = {};
+            // Kelompokkan data per supplier+barang, sambil catat max createdAt per grup
+            const groupedMap = new Map(); // key -> { supplier, barang, stok, sisa, maxCreatedAt }
             dataHariIni.forEach(item => {
                 const key = `${item.supplier}-${item.barang}`;
-                if (!groupedData[key]) groupedData[key] = { supplier: item.supplier, barang: item.barang, stok: 0, sisa: 0 };
-                groupedData[key].stok += item.stok;
-                groupedData[key].sisa += item.sisa;
+                if (!groupedMap.has(key)) {
+                    groupedMap.set(key, {
+                        supplier: item.supplier,
+                        barang: item.barang,
+                        stok: 0,
+                        sisa: 0,
+                        maxCreatedAt: item.createdAt?.seconds || 0
+                    });
+                }
+                const group = groupedMap.get(key);
+                group.stok += item.stok;
+                group.sisa += item.sisa;
+                const itemTime = item.createdAt?.seconds || 0;
+                if (itemTime > group.maxCreatedAt) group.maxCreatedAt = itemTime;
             });
 
-            Object.values(groupedData).forEach(item => {
+            // Ubah Map ke array untuk diurutkan
+            let groups = Array.from(groupedMap.values());
+
+            // Urutkan: pertama berdasarkan supplier (A-Z), lalu dalam supplier yang sama berdasarkan maxCreatedAt descending
+            groups.sort((a, b) => {
+                if (a.supplier < b.supplier) return -1;
+                if (a.supplier > b.supplier) return 1;
+                // supplier sama, urut berdasarkan maxCreatedAt descending
+                return b.maxCreatedAt - a.maxCreatedAt;
+            });
+
+            // Render
+            groups.forEach(item => {
                 const row = document.createElement('tr');
                 const key = `${item.supplier}-${item.barang}`;
                 const isReadOnly = !isGlobalEditMode;
@@ -1487,7 +1519,6 @@
                     displayStok = changes.stok;
                     displaySisa = changes.sisa;
                 }
-                // Tentukan apakah perlu bullet (hanya jika supplier muncul lebih dari 1 kali)
                 const needBullet = supplierCount[item.supplier] > 1;
                 const warna = supplierColorMap.get(item.supplier) || '#000000';
                 let barangDisplay = item.barang;
@@ -1522,14 +1553,25 @@
             });
         };
 
+        // ========== RENDER DETAIL TABLE WITH SORTING ==========
         const renderDetailTable = () => {
             const tbody = document.querySelector('#tableDetail tbody');
             tbody.innerHTML = '';
-            const dataHariIni = getTodaySalesData();
+            let dataHariIni = getTodaySalesData();
             if (dataHariIni.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 20px;">Belum ada data penjualan hari ini</td></tr>';
                 return;
             }
+
+            // Urutkan data: berdasarkan supplier (A-Z), lalu dalam supplier sama berdasarkan createdAt descending
+            dataHariIni.sort((a, b) => {
+                if (a.supplier < b.supplier) return -1;
+                if (a.supplier > b.supplier) return 1;
+                const timeA = a.createdAt?.seconds || 0;
+                const timeB = b.createdAt?.seconds || 0;
+                return timeB - timeA;
+            });
+
             dataHariIni.forEach((item, index) => {
                 const row = document.createElement('tr');
                 let itemData = { ...item };
@@ -1577,6 +1619,7 @@
             });
         };
 
+        // ========== RENDER SUPPLIER TABLE WITH SORTING ==========
         const renderSupplierTable = () => {
             const tbody = document.querySelector('#tableSupplier tbody');
             tbody.innerHTML = '';
@@ -1592,7 +1635,15 @@
                 if (!supplierTotals[item.supplier]) supplierTotals[item.supplier] = 0;
                 supplierTotals[item.supplier] += uangSupplier;
             });
-            Object.entries(supplierTotals).forEach(([supplier, total]) => {
+
+            // Ubah ke array dan urutkan berdasarkan nama supplier (A-Z)
+            const sortedSuppliers = Object.entries(supplierTotals).sort((a, b) => {
+                if (a[0] < b[0]) return -1;
+                if (a[0] > b[0]) return 1;
+                return 0;
+            });
+
+            sortedSuppliers.forEach(([supplier, total]) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `<td>${supplier}</td><td>${formatCurrency(total)}</td>`;
                 tbody.appendChild(row);
@@ -1606,6 +1657,8 @@
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">Belum ada data supplier detail</td></tr>';
                 return;
             }
+            // Untuk tabel detail supplier (popup), kita tidak perlu sorting khusus karena hanya menampilkan data lama.
+            // Bisa diurutkan berdasarkan tanggal desc (default dari Firestore), tetapi tidak diminta.
             belumDibayarData.forEach((item) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -1633,6 +1686,7 @@
             });
         };
 
+        // ========== RENDER SUPPLIER MASTER TABLE WITH GROUPING (existing) ==========
         const renderSupplierMasterTable = () => {
             const tbody = document.querySelector('#tableSupplierMaster tbody');
             tbody.innerHTML = '';
@@ -1640,36 +1694,79 @@
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">Belum ada data master supplier</td></tr>';
                 return;
             }
-            supplierMasterData.forEach((item, index) => {
+
+            // Buat array displayItems dengan menggabungkan data asli dan batchChanges
+            const displayItems = supplierMasterData.map(item => {
+                if (batchChanges.supplierMaster.has(item.id)) {
+                    // Ambil data dari batchChanges, tapi pastikan id dan createdAt tetap dari data asli
+                    return { ...batchChanges.supplierMaster.get(item.id), id: item.id, createdAt: item.createdAt };
+                } else {
+                    return { ...item };
+                }
+            });
+
+            // Urutkan berdasarkan nama (ascending), lalu createdAt (descending) agar yang terbaru di atas dalam grup
+            displayItems.sort((a, b) => {
+                const namaA = a.nama || '';
+                const namaB = b.nama || '';
+                if (namaA < namaB) return -1;
+                if (namaA > namaB) return 1;
+                // Jika nama sama, urutkan berdasarkan createdAt descending (terbaru di atas)
+                const timeA = a.createdAt?.seconds || 0;
+                const timeB = b.createdAt?.seconds || 0;
+                return timeB - timeA;
+            });
+
+            // Loop displayItems untuk membuat row
+            displayItems.forEach((item, index) => {
                 const isSelected = selectedSupplierIds.has(item.id);
                 const isReadOnly = !isGlobalEditMode;
-                let itemData = { ...item };
-                if (batchChanges.supplierMaster.has(item.id)) itemData = batchChanges.supplierMaster.get(item.id);
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><input type="checkbox" class="supplier-checkbox" data-id="${item.id}" ${isSelected ? 'checked' : ''} data-index="${index}"></td>
-                    <td><input type="text" value="${itemData.nama || ''}" data-id="${item.id}" data-field="nama" ${isReadOnly ? 'readonly' : ''}></td>
-                    <td><input type="text" value="${itemData.barang || ''}" data-id="${item.id}" data-field="barang" ${isReadOnly ? 'readonly' : ''}></td>
-                    <td><input type="text" class="currency-input-field" value="${formatNumber(itemData.hargaBeli || 0)}" data-id="${item.id}" data-field="hargaBeli" ${isReadOnly ? 'readonly' : ''}></td>
-                    <td><input type="text" class="currency-input-field" value="${formatNumber(itemData.hargaJual || 0)}" data-id="${item.id}" data-field="hargaJual" ${isReadOnly ? 'readonly' : ''}></td>
+                    <td><input type="text" value="${item.nama || ''}" data-id="${item.id}" data-field="nama" ${isReadOnly ? 'readonly' : ''}></td>
+                    <td><input type="text" value="${item.barang || ''}" data-id="${item.id}" data-field="barang" ${isReadOnly ? 'readonly' : ''}></td>
+                    <td><input type="text" class="currency-input-field" value="${formatNumber(item.hargaBeli || 0)}" data-id="${item.id}" data-field="hargaBeli" ${isReadOnly ? 'readonly' : ''}></td>
+                    <td><input type="text" class="currency-input-field" value="${formatNumber(item.hargaJual || 0)}" data-id="${item.id}" data-field="hargaJual" ${isReadOnly ? 'readonly' : ''}></td>
                 `;
                 tbody.appendChild(row);
             });
+
             tbody.querySelectorAll('.supplier-checkbox').forEach(checkbox => {
                 checkbox.addEventListener('change', function() {
                     const id = this.getAttribute('data-id');
-                    if (this.checked) { selectedSupplierIds.add(id); const index = parseInt(this.getAttribute('data-index')); if (!selectedSupplierOrder.includes(id)) selectedSupplierOrder.push(id); }
-                    else { selectedSupplierIds.delete(id); selectedSupplierOrder = selectedSupplierOrder.filter(itemId => itemId !== id); }
+                    if (this.checked) { 
+                        selectedSupplierIds.add(id); 
+                        const index = parseInt(this.getAttribute('data-index')); 
+                        if (!selectedSupplierOrder.includes(id)) selectedSupplierOrder.push(id); 
+                    }
+                    else { 
+                        selectedSupplierIds.delete(id); 
+                        selectedSupplierOrder = selectedSupplierOrder.filter(itemId => itemId !== id); 
+                    }
                 });
             });
+
             tbody.querySelectorAll('.btn-hapus-supplier').forEach(btn => {
                 btn.addEventListener('click', async function() {
                     const id = this.getAttribute('data-id');
-                    if (confirm('Apakah Anda yakin ingin menghapus supplier ini?')) { try { await deleteSupplierMaster(id); selectedSupplierIds.delete(id); selectedSupplierOrder = selectedSupplierOrder.filter(itemId => itemId !== id); } catch (error) { console.error("Error deleting supplier master:", error); alert("Gagal menghapus data: " + error.message); } }
+                    if (confirm('Apakah Anda yakin ingin menghapus supplier ini?')) { 
+                        try { 
+                            await deleteSupplierMaster(id); 
+                            selectedSupplierIds.delete(id); 
+                            selectedSupplierOrder = selectedSupplierOrder.filter(itemId => itemId !== id); 
+                        } catch (error) { 
+                            console.error("Error deleting supplier master:", error); 
+                            alert("Gagal menghapus data: " + error.message); 
+                        } 
+                    }
                 });
             });
-            if (isGlobalEditMode) setupSupplierMasterInputListenersForBatch(tbody);
-            else setupSupplierMasterInputListenersForInstant(tbody);
+
+            if (isGlobalEditMode) 
+                setupSupplierMasterInputListenersForBatch(tbody);
+            else 
+                setupSupplierMasterInputListenersForInstant(tbody);
         };
 
         const setupSupplierMasterInputListenersForBatch = (container) => {
